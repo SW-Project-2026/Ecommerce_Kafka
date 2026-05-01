@@ -1,0 +1,31 @@
+spring:
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9094,localhost:9095,localhost:9096}
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      max-poll-records: 100
+      enable-auto-commit: false
+    producer:
+      retries: 3
+      acks: all
+      batch-size: 16384
+      properties:
+        linger-ms: 1
+    listener:
+      ack-mode: manual
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/${POSTGRES_DB}}
+    username: ${SPRING_DATASOURCE_USERNAME:${POSTGRES_USER}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD}}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        '[format_sql]': false

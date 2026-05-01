@@ -3,13 +3,10 @@
 
 # 운영용 설정
 docker-compose-prod.yml
-docker-compose.yml
 
 # 빌드 결과물
-log-pipeline/
-
-# Dockerfile
-fluentd/Dockerfile
+log-pipeline/build/
+log-pipeline/.gradle/
 
 # IDE
 .idea/

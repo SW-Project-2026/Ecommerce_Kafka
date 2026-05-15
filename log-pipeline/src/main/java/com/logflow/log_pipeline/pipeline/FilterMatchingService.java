@@ -39,12 +39,13 @@ public class FilterMatchingService {
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
 
-    // ── 실시간: FILTER_TOPIC 메시지를 받아 TRIGGERED 캠페인과 매칭 ──
+    // ── 실시간: TRIGGERED 캠페인 중 IN_PROGRESS인 것만 매칭 ──
     public void match(Long historyId, JsonNode logNode, String rawMessage) {
         String eventName = logNode.path("event_name").asText();
 
         List<CampaignEntity> campaigns = campaignRepository.findAll().stream()
             .filter(c -> "TRIGGERED".equals(c.getCollectionType()))
+            .filter(c -> "IN_PROGRESS".equals(c.getStatus()))
             .toList();
 
         for (CampaignEntity campaign : campaigns) {
@@ -65,7 +66,7 @@ public class FilterMatchingService {
         }
     }
 
-    // ── 배치: 매분 실행 → batchCycle/batchTime/batchDayOfWeek/batchDayOfMonth 기준으로 실행 시각 비교 ──
+    // ── 배치: BATCH 캠페인 중 IN_PROGRESS인 것만 실행 ──
     @Scheduled(cron = "0 * * * * *")
     public void batchMatch() {
         LocalTime nowTime     = LocalTime.now();
@@ -77,6 +78,7 @@ public class FilterMatchingService {
 
         List<CampaignEntity> batchCampaigns = campaignRepository.findAll().stream()
             .filter(c -> "BATCH".equals(c.getCollectionType()))
+            .filter(c -> "IN_PROGRESS".equals(c.getStatus()))
             .filter(c -> c.getBatchCycle() != null)
             .filter(c -> c.getBatchTime() != null)
             .toList();
@@ -144,7 +146,6 @@ public class FilterMatchingService {
         }
     }
 
-    // AND/OR 논리 연산자에 따라 전체 필터 조건 매칭
     private boolean matchFilters(JsonNode logNode, List<CampaignFilterEntity> filters, String logicalOperator) {
         if (filters == null || filters.isEmpty()) return false;
 
@@ -159,7 +160,6 @@ public class FilterMatchingService {
         }
     }
 
-    // 단일 필터 조건 매칭
     private boolean matchSingleFilter(JsonNode logNode, CampaignFilterEntity filter) {
         try {
             JsonNode fieldNode = logNode.path(filter.getEventFieldName());
@@ -201,7 +201,6 @@ public class FilterMatchingService {
         }
     }
 
-    // 필터링 성공 처리 - DB 저장 + FILTER_SUCCESS_TOPIC 발행
     private void handleSuccess(Long historyId, CampaignEntity campaign, boolean isRealtime, String rawMessage) {
         Long campaignId = campaign.getCampaignId();
         LocalDate today = LocalDate.now();
@@ -224,7 +223,6 @@ public class FilterMatchingService {
         log.info("필터링 성공 - historyId: {} campaignId: {}", historyId, campaignId);
     }
 
-    // 필터링 실패 처리 - DB 저장만 (토픽 발행 없음)
     private void handleFail(Long historyId, CampaignEntity campaign) {
         Long campaignId = campaign.getCampaignId();
         LocalDate today = LocalDate.now();

@@ -12,29 +12,29 @@ public class CampaignEntity {
     private Long campaignId;
 
     @Column(name = "collection_type")
-    private String collectionType; // TRIGGERED / BATCH
+    private String collectionType;
 
     @Column(name = "filter_logical_operator")
-    private String filterLogicalOperator; // AND / OR
+    private String filterLogicalOperator;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    // DAILY / WEEKLY / MONTHLY (VARCHAR)
     @Column(name = "batch_cycle")
     private String batchCycle;
 
-    // HH:mm 형식 (예: "09:00")
     @Column(name = "batch_time")
     private String batchTime;
 
-    // MONDAY ~ SUNDAY (WEEKLY일 때만 사용)
     @Column(name = "batch_day_of_week")
     private String batchDayOfWeek;
 
-    // 1~31 (MONTHLY일 때만 사용)
     @Column(name = "batch_day_of_month")
     private Integer batchDayOfMonth;
+
+    // 신규 추가
+    @Column(name = "status")
+    private String status;
 
     public Long getCampaignId()              { return campaignId; }
     public String getCollectionType()        { return collectionType; }
@@ -44,13 +44,15 @@ public class CampaignEntity {
     public String getBatchTime()             { return batchTime; }
     public String getBatchDayOfWeek()        { return batchDayOfWeek; }
     public Integer getBatchDayOfMonth()      { return batchDayOfMonth; }
+    public String getStatus()                { return status; }
 
-    public void setCampaignId(Long campaignId)                    { this.campaignId = campaignId; }
-    public void setCollectionType(String collectionType)          { this.collectionType = collectionType; }
-    public void setFilterLogicalOperator(String op)               { this.filterLogicalOperator = op; }
-    public void setCreatedAt(LocalDateTime createdAt)             { this.createdAt = createdAt; }
-    public void setBatchCycle(String batchCycle)                  { this.batchCycle = batchCycle; }
-    public void setBatchTime(String batchTime)                    { this.batchTime = batchTime; }
-    public void setBatchDayOfWeek(String batchDayOfWeek)          { this.batchDayOfWeek = batchDayOfWeek; }
-    public void setBatchDayOfMonth(Integer batchDayOfMonth)       { this.batchDayOfMonth = batchDayOfMonth; }
+    public void setCampaignId(Long campaignId)             { this.campaignId = campaignId; }
+    public void setCollectionType(String collectionType)   { this.collectionType = collectionType; }
+    public void setFilterLogicalOperator(String op)        { this.filterLogicalOperator = op; }
+    public void setCreatedAt(LocalDateTime createdAt)      { this.createdAt = createdAt; }
+    public void setBatchCycle(String batchCycle)           { this.batchCycle = batchCycle; }
+    public void setBatchTime(String batchTime)             { this.batchTime = batchTime; }
+    public void setBatchDayOfWeek(String batchDayOfWeek)   { this.batchDayOfWeek = batchDayOfWeek; }
+    public void setBatchDayOfMonth(Integer batchDayOfMonth){ this.batchDayOfMonth = batchDayOfMonth; }
+    public void setStatus(String status)                   { this.status = status; }
 }

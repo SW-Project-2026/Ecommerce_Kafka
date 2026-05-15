@@ -6,8 +6,8 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
-import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
@@ -21,77 +21,93 @@ public class CampaignConsumer {
     private final CampaignFilterRepository campaignFilterRepository;
     private final ObjectMapper objectMapper;
 
-    // CAMPAIGN_TOPIC 구독 → Campaigns, Campaign_Filters 테이블 저장
-    @KafkaListener(topics = "CAMPAIGN_TOPIC", groupId = "campaign-save-group")
-    public void saveCampaign(String message, Acknowledgment ack) {
+    @Transactional
+    @KafkaListener(topics = "CAMPAIGN_TOPIC", groupId = "log-pipeline-group")
+    public void consume(String message) {
         try {
-            JsonNode root = objectMapper.readTree(message);
+            JsonNode node = objectMapper.readTree(message);
+            String action = node.path("action").asText("UPSERT");
 
-            Long campaignId = root.get("campaignId").asLong();
-
-            // 캠페인 저장 (upsert: id 존재 시 덮어쓰기)
-            CampaignEntity campaign = campaignRepository.findById(campaignId)
-                .orElse(new CampaignEntity());
-
-            campaign.setCampaignId(campaignId);
-            campaign.setCollectionType(root.path("collectionType").asText());
-            campaign.setFilterLogicalOperator(root.path("filterLogicalOperator").asText("AND"));
-
-            // createdAt 파싱
-            String createdAtStr = root.path("createdAt").asText();
-            if (!createdAtStr.isEmpty()) {
-                try {
-                    campaign.setCreatedAt(LocalDateTime.parse(createdAtStr));
-                } catch (Exception e) {
-                    campaign.setCreatedAt(LocalDateTime.now());
-                }
+            if ("STATUS_UPDATE".equals(action)) {
+                handleStatusUpdate(node);
+            } else if ("DELETE".equals(action)) {
+                handleDelete(node);
+            } else {
+                handleUpsert(node);
             }
-
-            // batchCycle: DAILY / WEEKLY / MONTHLY
-            String batchCycle = root.path("batchCycle").asText("");
-            campaign.setBatchCycle(batchCycle.isEmpty() ? null : batchCycle);
-
-            // batchTime: HH:mm
-            String batchTime = root.path("batchTime").asText("");
-            campaign.setBatchTime(batchTime.isEmpty() ? null : batchTime);
-
-            // batchDayOfWeek: MONDAY ~ SUNDAY
-            String batchDayOfWeek = root.path("batchDayOfWeek").asText("");
-            campaign.setBatchDayOfWeek(batchDayOfWeek.isEmpty() ? null : batchDayOfWeek);
-
-            // batchDayOfMonth: 1~31
-            JsonNode dayOfMonthNode = root.path("batchDayOfMonth");
-            campaign.setBatchDayOfMonth(dayOfMonthNode.isNull() || dayOfMonthNode.asInt() == 0
-                ? null : dayOfMonthNode.asInt());
-
-            campaignRepository.save(campaign);
-
-            // 기존 필터 삭제 후 새로 저장
-            campaignFilterRepository.deleteByCampaignId(campaignId);
-
-            JsonNode filtersNode = root.path("filters");
-            if (filtersNode.isArray()) {
-                for (JsonNode f : filtersNode) {
-                    CampaignFilterEntity filter = new CampaignFilterEntity();
-                    filter.setAll(
-                        campaignId,
-                        f.path("eventName").asText(),
-                        f.path("eventFieldName").asText(),
-                        f.path("fieldType").asText(),
-                        f.path("operator").asText(),
-                        f.path("value").asText(),
-                        f.path("periodDays").asInt(7)
-                    );
-                    campaignFilterRepository.save(filter);
-                }
-            }
-
-            log.info("CAMPAIGN_TOPIC 저장 완료 - campaignId: {}", campaignId);
-            ack.acknowledge();
-
         } catch (Exception e) {
-            log.error("CAMPAIGN_TOPIC 처리 오류 - error: {}", e.getMessage());
-            ack.acknowledge();
+            log.error("CAMPAIGN_TOPIC 처리 오류: {}", e.getMessage());
         }
+    }
+
+    private void handleUpsert(JsonNode node) {
+        Long campaignId = node.path("campaignId").asLong();
+
+        CampaignEntity campaign = campaignRepository.findById(campaignId)
+            .orElse(new CampaignEntity());
+
+        campaign.setCampaignId(campaignId);
+        campaign.setCollectionType(node.path("collectionType").asText());
+        campaign.setFilterLogicalOperator(node.path("filterLogicalOperator").asText());
+        campaign.setCreatedAt(LocalDateTime.now());
+
+        String batchCycle = node.path("batchCycle").asText("");
+        campaign.setBatchCycle(batchCycle.isEmpty() ? null : batchCycle);
+
+        String batchTime = node.path("batchTime").asText("");
+        campaign.setBatchTime(batchTime.isEmpty() ? null : batchTime);
+
+        String batchDayOfWeek = node.path("batchDayOfWeek").asText("");
+        campaign.setBatchDayOfWeek(batchDayOfWeek.isEmpty() ? null : batchDayOfWeek);
+
+        int batchDayOfMonth = node.path("batchDayOfMonth").asInt(0);
+        campaign.setBatchDayOfMonth(batchDayOfMonth == 0 ? null : batchDayOfMonth);
+
+        campaign.setStatus(node.path("status").asText("IN_PROGRESS"));
+
+        campaignRepository.save(campaign);
+
+        campaignFilterRepository.deleteByCampaignId(campaignId);
+        JsonNode filtersNode = node.path("filters");
+        if (filtersNode.isArray()) {
+            for (JsonNode f : filtersNode) {
+                CampaignFilterEntity filter = new CampaignFilterEntity();
+                filter.setAll(
+                    campaignId,
+                    f.path("eventName").asText(),
+                    f.path("eventFieldName").asText(),
+                    f.path("fieldType").asText(),
+                    f.path("operator").asText(),
+                    f.path("value").asText(),
+                    f.path("periodDays").asInt(7)
+                );
+                campaignFilterRepository.save(filter);
+            }
+        }
+
+        log.info("캠페인 UPSERT 완료 - campaignId: {} status: {}", campaignId, campaign.getStatus());
+    }
+
+    private void handleStatusUpdate(JsonNode node) {
+        Long campaignId = node.path("campaignId").asLong();
+        String status   = node.path("status").asText();
+
+        campaignRepository.findById(campaignId).ifPresentOrElse(
+            campaign -> {
+                campaign.setStatus(status);
+                campaignRepository.save(campaign);
+                log.info("캠페인 상태 변경 완료 - campaignId: {} status: {}", campaignId, status);
+            },
+            () -> log.warn("상태 변경 대상 캠페인 없음 - campaignId: {}", campaignId)
+        );
+    }
+
+    private void handleDelete(JsonNode node) {
+        Long campaignId = node.path("campaignId").asLong();
+
+        campaignFilterRepository.deleteByCampaignId(campaignId);
+        campaignRepository.deleteById(campaignId);
+
+        log.info("캠페인 DELETE 완료 - campaignId: {}", campaignId);
     }
 }

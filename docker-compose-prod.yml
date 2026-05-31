@@ -4,100 +4,46 @@ services:
     image: apache/kafka:4.2.0
     container_name: kafka1
     environment:
-      KAFKA_NODE_ID: 1 # 카프카 노드 ID
-      KAFKA_PROCESS_ROLES: 'broker,controller' # 브로커 + 컨트롤러 역할
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka1:9093,2@kafka2:9093,3@kafka3:9093' # 컨트롤러 투표 노드 목록
-      KAFKA_LISTENERS: 'PLAINTEXT://:9092,CONTROLLER://:9093' # 내부/컨트롤러 리스너
-      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka1:9092' # 브로커간 통신 주소
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT' # 리스너별 프로토콜
-      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT' # 브로커간 통신 리스너
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER' # 컨트롤러 리스너
-      KAFKA_CLUSTER_ID: ${KAFKA_CLUSTER_ID} # .env에서 클러스터 ID 읽어옴
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3 # 오프셋 토픽 복제 수
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3 # 트랜잭션 로그 복제 수
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2 # 최소 동기화 복제본 수
-      KAFKA_HEAP_OPTS: "-Xmx256m -Xms256m" # 메모리 제한 (EC2 1GB 대응)
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka1:9093'
+      KAFKA_LISTENERS: 'PLAINTEXT://:9092,CONTROLLER://:9093'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka1:9092'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_CLUSTER_ID: ${KAFKA_CLUSTER_ID}
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms256m"
     healthcheck:
       test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "kafka1:9092", "--list"]
-      interval: 10s # 10초마다 상태 확인
-      timeout: 5s # 5초 안에 응답 없으면 실패
-      retries: 5 # 5번 재시도
-
-  kafka2:
-    image: apache/kafka:4.2.0
-    container_name: kafka2
-    environment:
-      KAFKA_NODE_ID: 2
-      KAFKA_PROCESS_ROLES: 'broker,controller'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka1:9093,2@kafka2:9093,3@kafka3:9093'
-      KAFKA_LISTENERS: 'PLAINTEXT://:9092,CONTROLLER://:9093'
-      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka2:9092'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT'
-      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      KAFKA_CLUSTER_ID: ${KAFKA_CLUSTER_ID}
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
-      KAFKA_HEAP_OPTS: "-Xmx256m -Xms256m" # 메모리 제한
-    healthcheck:
-      test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "kafka2:9092", "--list"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  kafka3:
-    image: apache/kafka:4.2.0
-    container_name: kafka3
-    environment:
-      KAFKA_NODE_ID: 3
-      KAFKA_PROCESS_ROLES: 'broker,controller'
-      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka1:9093,2@kafka2:9093,3@kafka3:9093'
-      KAFKA_LISTENERS: 'PLAINTEXT://:9092,CONTROLLER://:9093'
-      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka3:9092'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT'
-      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
-      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      KAFKA_CLUSTER_ID: ${KAFKA_CLUSTER_ID}
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
-      KAFKA_HEAP_OPTS: "-Xmx256m -Xms256m" # 메모리 제한
-    healthcheck:
-      test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "kafka3:9092", "--list"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   fluentd:
-    image: omwsku/fluentd-kafka # 도커허브에서 이미지 pull
+    image: omwsku/fluentd-kafka
     container_name: fluentd
     volumes:
-      - ./fluentd/conf:/fluentd/etc # fluentd 설정 파일 마운트
+      - ./fluentd/conf:/fluentd/etc
     ports:
-      - "9880:9880" # HTTP 입력 포트 (BE에서 여기로 전송)
+      - "9880:9880"
     depends_on:
       kafka1:
-        condition: service_healthy # kafka 3개 모두 정상일 때만 실행
-      kafka2:
-        condition: service_healthy
-      kafka3:
         condition: service_healthy
 
   springboot-kafka:
-    image: omwsku/log-pipeline # 도커허브에서 이미지 pull
+    image: omwsku/log-pipeline
     container_name: springboot-kafka
     depends_on:
       kafka1:
         condition: service_healthy
-      kafka2:
-        condition: service_healthy
-      kafka3:
-        condition: service_healthy
     environment:
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka1:9092,kafka2:9092,kafka3:9092 # 카프카 브로커 주소
-      SPRING_DATASOURCE_URL: jdbc:postgresql://${RDS_ENDPOINT}:5432/${POSTGRES_DB} # RDS 엔드포인트
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER} # DB 유저
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD} # DB 비밀번호
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka1:9092
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${RDS_ENDPOINT}:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-      TZ: Asia/Seoul # 한국 시간대 설정
+      TZ: Asia/Seoul

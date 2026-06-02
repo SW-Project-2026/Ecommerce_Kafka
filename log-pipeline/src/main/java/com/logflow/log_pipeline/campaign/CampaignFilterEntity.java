@@ -3,7 +3,7 @@ package com.logflow.log_pipeline.campaign;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "Campaign_Filters")
+@Table(name = "Campaign_Filter")
 public class CampaignFilterEntity {
 
     @Id

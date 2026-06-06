@@ -24,7 +24,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update # 앱 시작 시 테이블 자동 업데이트
+      ddl-auto: validate
     show-sql: false # SQL 로그 출력 안함
     properties:
       hibernate:

@@ -3,6 +3,7 @@ package com.logflow.log_pipeline.pipeline;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.logflow.log_pipeline.pipeline.event.EventLogConsumer;
 import com.logflow.log_pipeline.pipeline.history.HistoryLogEntity;
 import com.logflow.log_pipeline.pipeline.history.HistoryLogRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,7 @@ public class Router {
     private final HistoryLogRepository historyLogRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
+    private final EventLogConsumer eventLogConsumer;
 
     // START_TOPIC 구독 → First_Save_History 저장 → historyId 포함해서 FILTER_TOPIC 전달
     @KafkaListener(topics = "START_TOPIC", groupId = "history-save-group")
@@ -31,6 +33,9 @@ public class Router {
             HistoryLogEntity history = new HistoryLogEntity();
             history.setJsonLog(message);
             historyLogRepository.save(history);
+
+            // event_log 저장
+            eventLogConsumer.consume(message);
 
             // 메시지에 history_id 추가 후 FILTER_TOPIC으로 전달
             JsonNode logNode   = objectMapper.readTree(message);

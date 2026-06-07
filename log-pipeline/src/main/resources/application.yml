@@ -18,14 +18,14 @@ spring:
 
   datasource:
     kafka:
-      url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/${POSTGRES_DB}} # Kafka DB 주소
+      jdbc-url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/${POSTGRES_DB}} # Kafka DB 주소
       username: ${SPRING_DATASOURCE_USERNAME:${POSTGRES_USER}} # Kafka DB 유저
       password: ${SPRING_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD}} # Kafka DB 비밀번호
       driver-class-name: org.postgresql.Driver
     be:
-      url: ${BE_DATASOURCE_URL:jdbc:postgresql://3.94.195.37:5432/ecommerce} # BE DB 주소
-      username: ${BE_DATASOURCE_USERNAME:admin} # BE DB 유저
-      password: ${BE_DATASOURCE_PASSWORD:1234} # BE DB 비밀번호
+      jdbc-url: ${BE_DATASOURCE_URL} # BE DB 주소
+      username: ${BE_DATASOURCE_USERNAME} # BE DB 유저
+      password: ${BE_DATASOURCE_PASSWORD} # BE DB 비밀번호
       driver-class-name: org.postgresql.Driver
 
   jpa:

@@ -35,3 +35,4 @@ spring:
     properties:
       hibernate:
         '[format_sql]': false # SQL 포맷팅 안함
+        '[physical_naming_strategy]': org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy

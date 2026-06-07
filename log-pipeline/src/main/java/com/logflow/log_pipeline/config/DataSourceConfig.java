@@ -100,6 +100,7 @@ public class DataSourceConfig {
         Map<String, Object> props = new HashMap<>();
         props.put("hibernate.hbm2ddl.auto", "none");
         props.put("hibernate.dialect", "org.hibernate.dialect.PostgreSQLDialect");
+        props.put("hibernate.physical_naming_strategy", "org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy");
         em.setJpaPropertyMap(props);
 
         return em;

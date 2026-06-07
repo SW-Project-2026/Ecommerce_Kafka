@@ -1,0 +1,41 @@
+package com.logflow.log_pipeline.pipeline.sse;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "pending_notification")
+@Getter
+public class PendingNotificationEntity {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
+
+    @Column(name = "campaign_id", nullable = false)
+    private Long campaignId;
+
+    @Column(name = "coupon_id")
+    private Long couponId;
+
+    @Column(name = "ad_id")
+    private Long adId;
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    public void prePersist() {
+        this.createdAt = LocalDateTime.now();
+    }
+
+    public void setUserId(Long userId)       { this.userId = userId; }
+    public void setCampaignId(Long campaignId) { this.campaignId = campaignId; }
+    public void setCouponId(Long couponId)   { this.couponId = couponId; }
+    public void setAdId(Long adId)           { this.adId = adId; }
+}

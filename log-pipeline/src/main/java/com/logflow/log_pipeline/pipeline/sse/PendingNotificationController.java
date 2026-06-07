@@ -11,7 +11,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/notifications")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class PendingNotificationController {
 
     private final PendingNotificationRepository pendingNotificationRepository;

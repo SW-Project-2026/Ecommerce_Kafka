@@ -17,10 +17,16 @@ spring:
       ack-mode: manual # 메시지 처리 후 수동으로 커밋
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/${POSTGRES_DB}} # DB 주소 (없으면 로컬 기본값)
-    username: ${SPRING_DATASOURCE_USERNAME:${POSTGRES_USER}} # DB 유저
-    password: ${SPRING_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD}} # DB 비밀번호
-    driver-class-name: org.postgresql.Driver # PostgreSQL 드라이버
+    kafka:
+      url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5433/${POSTGRES_DB}} # Kafka DB 주소
+      username: ${SPRING_DATASOURCE_USERNAME:${POSTGRES_USER}} # Kafka DB 유저
+      password: ${SPRING_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD}} # Kafka DB 비밀번호
+      driver-class-name: org.postgresql.Driver
+    be:
+      url: ${BE_DATASOURCE_URL:jdbc:postgresql://3.94.195.37:5432/ecommerce} # BE DB 주소
+      username: ${BE_DATASOURCE_USERNAME:admin} # BE DB 유저
+      password: ${BE_DATASOURCE_PASSWORD:1234} # BE DB 비밀번호
+      driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:

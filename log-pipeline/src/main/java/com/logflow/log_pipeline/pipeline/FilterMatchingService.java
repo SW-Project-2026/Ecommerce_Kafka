@@ -2,6 +2,8 @@ package com.logflow.log_pipeline.pipeline;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.logflow.log_pipeline.be.CampaignBeEntity;
+import com.logflow.log_pipeline.be.CampaignBeRepository;
 import com.logflow.log_pipeline.campaign.CampaignEntity;
 import com.logflow.log_pipeline.campaign.CampaignFilterEntity;
 import com.logflow.log_pipeline.campaign.CampaignFilterRepository;
@@ -12,6 +14,7 @@ import com.logflow.log_pipeline.pipeline.history.FilterSuccessEntity;
 import com.logflow.log_pipeline.pipeline.history.FilterSuccessRepository;
 import com.logflow.log_pipeline.pipeline.history.HistoryLogEntity;
 import com.logflow.log_pipeline.pipeline.history.HistoryLogRepository;
+import com.logflow.log_pipeline.pipeline.sse.SseEmitterService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +41,8 @@ public class FilterMatchingService {
     private final HistoryLogRepository historyLogRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
+    private final SseEmitterService sseEmitterService;
+    private final CampaignBeRepository campaignBeRepository;
 
     // ── 실시간: TRIGGERED 캠페인 중 IN_PROGRESS인 것만 매칭 ──
     public void match(Long historyId, JsonNode logNode, String rawMessage) {
@@ -59,7 +64,7 @@ public class FilterMatchingService {
             boolean matched = matchFilters(logNode, filters, campaign.getFilterLogicalOperator());
 
             if (matched) {
-                handleSuccess(historyId, campaign, true, rawMessage);
+                handleSuccess(historyId, campaign, true, rawMessage, logNode);
             } else {
                 handleFail(historyId, campaign);
             }
@@ -69,12 +74,12 @@ public class FilterMatchingService {
     // ── 배치: BATCH 캠페인 중 IN_PROGRESS인 것만 실행 ──
     @Scheduled(cron = "0 * * * * *")
     public void batchMatch() {
-        LocalTime nowTime     = LocalTime.now();
-        int nowHour           = nowTime.getHour();
-        int nowMinute         = nowTime.getMinute();
-        LocalDateTime now     = LocalDateTime.now();
+        LocalTime nowTime       = LocalTime.now();
+        int nowHour             = nowTime.getHour();
+        int nowMinute           = nowTime.getMinute();
+        LocalDateTime now       = LocalDateTime.now();
         DayOfWeek nowDayOfWeek  = now.getDayOfWeek();
-        int       nowDayOfMonth = now.getDayOfMonth();
+        int nowDayOfMonth       = now.getDayOfMonth();
 
         List<CampaignEntity> batchCampaigns = campaignRepository.findAll().stream()
             .filter(c -> "BATCH".equals(c.getCollectionType()))
@@ -132,7 +137,7 @@ public class FilterMatchingService {
                     boolean matched = matchFilters(logNode, filters, campaign.getFilterLogicalOperator());
 
                     if (matched) {
-                        handleSuccess(historyLog.getHistoryId(), campaign, false, historyLog.getJsonLog());
+                        handleSuccess(historyLog.getHistoryId(), campaign, false, historyLog.getJsonLog(), logNode);
                     } else {
                         handleFail(historyLog.getHistoryId(), campaign);
                     }
@@ -201,7 +206,7 @@ public class FilterMatchingService {
         }
     }
 
-    private void handleSuccess(Long historyId, CampaignEntity campaign, boolean isRealtime, String rawMessage) {
+    private void handleSuccess(Long historyId, CampaignEntity campaign, boolean isRealtime, String rawMessage, JsonNode logNode) {
         Long campaignId = campaign.getCampaignId();
         LocalDate today = LocalDate.now();
 
@@ -221,6 +226,31 @@ public class FilterMatchingService {
 
         kafkaTemplate.send("FILTER_SUCCESS_TOPIC", String.valueOf(campaignId), rawMessage);
         log.info("필터링 성공 - historyId: {} campaignId: {}", historyId, campaignId);
+
+        // user_id 추출
+        JsonNode userIdNode = logNode.path("user_id");
+        if (userIdNode.isMissingNode() || userIdNode.isNull()) {
+            log.info("user_id 없음 - SSE 푸시 스킵");
+            return;
+        }
+        Long userId = userIdNode.asLong();
+
+        // BE DB에서 couponId, adId 조회
+        try {
+            CampaignBeEntity campaignBe = campaignBeRepository.findById(campaignId).orElse(null);
+            if (campaignBe == null) {
+                log.warn("BE DB 캠페인 없음 - campaignId: {}", campaignId);
+                return;
+            }
+            Long couponId = campaignBe.getCouponId();
+            Long adId     = campaignBe.getAdId();
+
+            // SSE 푸시
+            sseEmitterService.sendEvent(userId, campaignId, couponId, adId);
+
+        } catch (Exception e) {
+            log.error("SSE 푸시 오류 - campaignId: {} error: {}", campaignId, e.getMessage());
+        }
     }
 
     private void handleFail(Long historyId, CampaignEntity campaign) {

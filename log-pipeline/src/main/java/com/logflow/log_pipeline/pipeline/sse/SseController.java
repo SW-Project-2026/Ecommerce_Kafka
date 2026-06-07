@@ -1,0 +1,20 @@
+package com.logflow.log_pipeline.pipeline.sse;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+@RestController
+@RequestMapping("/api/notifications")
+@RequiredArgsConstructor
+@CrossOrigin(origins = "*")
+public class SseController {
+
+    private final SseEmitterService sseEmitterService;
+
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter stream(@RequestParam Long userId) {
+        return sseEmitterService.connect(userId);
+    }
+}

@@ -3,11 +3,9 @@ package com.logflow.log_pipeline.pipeline;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.logflow.log_pipeline.be.CampaignBeEntity;
+import com.logflow.log_pipeline.be.CampaignBeFilterEntity;
+import com.logflow.log_pipeline.be.CampaignBeFilterRepository;
 import com.logflow.log_pipeline.be.CampaignBeRepository;
-import com.logflow.log_pipeline.campaign.CampaignEntity;
-import com.logflow.log_pipeline.campaign.CampaignFilterEntity;
-import com.logflow.log_pipeline.campaign.CampaignFilterRepository;
-import com.logflow.log_pipeline.campaign.CampaignRepository;
 import com.logflow.log_pipeline.pipeline.history.FilterFailEntity;
 import com.logflow.log_pipeline.pipeline.history.FilterFailRepository;
 import com.logflow.log_pipeline.pipeline.history.FilterSuccessEntity;
@@ -34,8 +32,6 @@ public class FilterMatchingService {
 
     private static final Logger log = LoggerFactory.getLogger(FilterMatchingService.class);
 
-    private final CampaignRepository campaignRepository;
-    private final CampaignFilterRepository campaignFilterRepository;
     private final FilterSuccessRepository filterSuccessRepository;
     private final FilterFailRepository filterFailRepository;
     private final HistoryLogRepository historyLogRepository;
@@ -43,22 +39,23 @@ public class FilterMatchingService {
     private final ObjectMapper objectMapper;
     private final SseEmitterService sseEmitterService;
     private final CampaignBeRepository campaignBeRepository;
+    private final CampaignBeFilterRepository campaignBeFilterRepository;
 
     // ── 실시간: TRIGGERED 캠페인 중 IN_PROGRESS인 것만 매칭 ──
     public void match(Long historyId, JsonNode logNode, String rawMessage) {
         String eventName = logNode.path("event_name").asText();
 
-        List<CampaignEntity> campaigns = campaignRepository.findAll().stream()
-            .filter(c -> "TRIGGERED".equals(c.getCollectionType()))
+        List<CampaignBeEntity> campaigns = campaignBeRepository.findAll().stream()
+            .filter(c -> "TRIGGERED".equals(c.getCampaignType()))
             .filter(c -> "IN_PROGRESS".equals(c.getStatus()))
             .toList();
 
-        for (CampaignEntity campaign : campaigns) {
-            List<CampaignFilterEntity> filters =
-                campaignFilterRepository.findByCampaignId(campaign.getCampaignId());
+        for (CampaignBeEntity campaign : campaigns) {
+            List<CampaignBeFilterEntity> filters =
+                campaignBeFilterRepository.findByCampaignIdWithEventField(campaign.getId());
 
             boolean hasMatchingEvent = filters.stream()
-                .anyMatch(f -> f.getEventName().equals(eventName));
+                .anyMatch(f -> eventName.equals(f.getEventName()));
             if (!hasMatchingEvent) continue;
 
             boolean matched = matchFilters(logNode, filters, campaign.getFilterLogicalOperator());
@@ -74,22 +71,23 @@ public class FilterMatchingService {
     // ── 배치: BATCH 캠페인 중 IN_PROGRESS인 것만 실행 ──
     @Scheduled(cron = "0 * * * * *")
     public void batchMatch() {
-        LocalTime nowTime       = LocalTime.now();
-        int nowHour             = nowTime.getHour();
-        int nowMinute           = nowTime.getMinute();
-        LocalDateTime now       = LocalDateTime.now();
-        DayOfWeek nowDayOfWeek  = now.getDayOfWeek();
-        int nowDayOfMonth       = now.getDayOfMonth();
+        LocalTime nowTime      = LocalTime.now();
+        int nowHour            = nowTime.getHour();
+        int nowMinute          = nowTime.getMinute();
+        LocalDateTime now      = LocalDateTime.now();
+        DayOfWeek nowDayOfWeek = now.getDayOfWeek();
+        int nowDayOfMonth      = now.getDayOfMonth();
 
-        List<CampaignEntity> batchCampaigns = campaignRepository.findAll().stream()
-            .filter(c -> "BATCH".equals(c.getCollectionType()))
+        List<CampaignBeEntity> batchCampaigns = campaignBeRepository.findAll().stream()
+            .filter(c -> "BATCH".equals(c.getCampaignType()))
             .filter(c -> "IN_PROGRESS".equals(c.getStatus()))
             .filter(c -> c.getBatchCycle() != null)
             .filter(c -> c.getBatchTime() != null)
             .toList();
 
-        for (CampaignEntity campaign : batchCampaigns) {
-            String[] timeParts = campaign.getBatchTime().split(":");
+        for (CampaignBeEntity campaign : batchCampaigns) {
+            String batchTimeStr = campaign.getBatchTime().toString();
+            String[] timeParts  = batchTimeStr.split(":");
             if (timeParts.length < 2) continue;
             int runHour   = Integer.parseInt(timeParts[0].trim());
             int runMinute = Integer.parseInt(timeParts[1].trim());
@@ -110,15 +108,15 @@ public class FilterMatchingService {
             }
 
             log.info("배치 캠페인 실행 - campaignId: {} batchCycle: {} 실행시각: {}:{}",
-                campaign.getCampaignId(), batchCycle, nowHour, nowMinute);
+                campaign.getId(), batchCycle, nowHour, nowMinute);
 
-            List<CampaignFilterEntity> filters =
-                campaignFilterRepository.findByCampaignId(campaign.getCampaignId());
+            List<CampaignBeFilterEntity> filters =
+                campaignBeFilterRepository.findByCampaignIdWithEventField(campaign.getId());
 
             if (filters.isEmpty()) continue;
 
             int maxPeriodDays = filters.stream()
-                .mapToInt(CampaignFilterEntity::getPeriodDays)
+                .mapToInt(CampaignBeFilterEntity::getPeriodDays)
                 .max()
                 .orElse(7);
 
@@ -127,11 +125,11 @@ public class FilterMatchingService {
 
             for (HistoryLogEntity historyLog : logs) {
                 try {
-                    JsonNode logNode = objectMapper.readTree(historyLog.getJsonLog());
-                    String eventName = logNode.path("event_name").asText();
+                    JsonNode logNode  = objectMapper.readTree(historyLog.getJsonLog());
+                    String eventName  = logNode.path("event_name").asText();
 
                     boolean hasMatchingEvent = filters.stream()
-                        .anyMatch(f -> f.getEventName().equals(eventName));
+                        .anyMatch(f -> eventName.equals(f.getEventName()));
                     if (!hasMatchingEvent) continue;
 
                     boolean matched = matchFilters(logNode, filters, campaign.getFilterLogicalOperator());
@@ -147,11 +145,11 @@ public class FilterMatchingService {
                 }
             }
 
-            log.info("배치 캠페인 완료 - campaignId: {}", campaign.getCampaignId());
+            log.info("배치 캠페인 완료 - campaignId: {}", campaign.getId());
         }
     }
 
-    private boolean matchFilters(JsonNode logNode, List<CampaignFilterEntity> filters, String logicalOperator) {
+    private boolean matchFilters(JsonNode logNode, List<CampaignBeFilterEntity> filters, String logicalOperator) {
         if (filters == null || filters.isEmpty()) return false;
 
         List<Boolean> results = filters.stream()
@@ -165,9 +163,9 @@ public class FilterMatchingService {
         }
     }
 
-    private boolean matchSingleFilter(JsonNode logNode, CampaignFilterEntity filter) {
+    private boolean matchSingleFilter(JsonNode logNode, CampaignBeFilterEntity filter) {
         try {
-            JsonNode fieldNode = logNode.path(filter.getEventFieldName());
+            JsonNode fieldNode = logNode.path(filter.getFieldName());
             if (fieldNode.isMissingNode()) return false;
 
             String fieldType = filter.getFieldType();
@@ -201,13 +199,13 @@ public class FilterMatchingService {
             return false;
 
         } catch (Exception e) {
-            log.error("단일 필터 매칭 오류 - field: {} error: {}", filter.getEventFieldName(), e.getMessage());
+            log.error("단일 필터 매칭 오류 - field: {} error: {}", filter.getFieldName(), e.getMessage());
             return false;
         }
     }
 
-    private void handleSuccess(Long historyId, CampaignEntity campaign, boolean isRealtime, String rawMessage, JsonNode logNode) {
-        Long campaignId = campaign.getCampaignId();
+    private void handleSuccess(Long historyId, CampaignBeEntity campaign, boolean isRealtime, String rawMessage, JsonNode logNode) {
+        Long campaignId = campaign.getId();
         LocalDate today = LocalDate.now();
 
         boolean isDuplicate = isRealtime
@@ -235,26 +233,18 @@ public class FilterMatchingService {
         }
         Long userId = userIdNode.asLong();
 
-        // BE DB에서 couponId, adId 조회
+        // SSE 푸시
         try {
-            CampaignBeEntity campaignBe = campaignBeRepository.findById(campaignId).orElse(null);
-            if (campaignBe == null) {
-                log.warn("BE DB 캠페인 없음 - campaignId: {}", campaignId);
-                return;
-            }
-            Long couponId = campaignBe.getCouponId();
-            Long adId     = campaignBe.getAdId();
-
-            // SSE 푸시
+            Long couponId = campaign.getCouponId();
+            Long adId     = campaign.getAdId();
             sseEmitterService.sendEvent(userId, campaignId, couponId, adId);
-
         } catch (Exception e) {
             log.error("SSE 푸시 오류 - campaignId: {} error: {}", campaignId, e.getMessage());
         }
     }
 
-    private void handleFail(Long historyId, CampaignEntity campaign) {
-        Long campaignId = campaign.getCampaignId();
+    private void handleFail(Long historyId, CampaignBeEntity campaign) {
+        Long campaignId = campaign.getId();
         LocalDate today = LocalDate.now();
 
         boolean isDuplicate = filterFailRepository

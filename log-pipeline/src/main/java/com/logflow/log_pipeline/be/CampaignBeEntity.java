@@ -3,6 +3,8 @@ package com.logflow.log_pipeline.be;
 import jakarta.persistence.*;
 import lombok.Getter;
 
+import java.time.LocalTime;
+
 @Entity
 @Table(name = "campaign")
 @Getter
@@ -29,4 +31,16 @@ public class CampaignBeEntity {
 
     @Column(name = "filter_logical_operator")
     private String filterLogicalOperator;
+
+    @Column(name = "batch_cycle")
+    private String batchCycle;
+
+    @Column(name = "batch_time")
+    private LocalTime batchTime;
+
+    @Column(name = "batch_day_of_week")
+    private String batchDayOfWeek;
+
+    @Column(name = "batch_day_of_month")
+    private Integer batchDayOfMonth;
 }

@@ -6,6 +6,8 @@ import com.logflow.log_pipeline.be.CampaignBeEntity;
 import com.logflow.log_pipeline.be.CampaignBeFilterEntity;
 import com.logflow.log_pipeline.be.CampaignBeFilterRepository;
 import com.logflow.log_pipeline.be.CampaignBeRepository;
+import com.logflow.log_pipeline.be.CouponBeEntity;
+import com.logflow.log_pipeline.be.CouponBeRepository;
 import com.logflow.log_pipeline.pipeline.history.FilterFailEntity;
 import com.logflow.log_pipeline.pipeline.history.FilterFailRepository;
 import com.logflow.log_pipeline.pipeline.history.FilterSuccessEntity;
@@ -40,6 +42,7 @@ public class FilterMatchingService {
     private final SseEmitterService sseEmitterService;
     private final CampaignBeRepository campaignBeRepository;
     private final CampaignBeFilterRepository campaignBeFilterRepository;
+    private final CouponBeRepository couponBeRepository;
 
     // ── 실시간: TRIGGERED 캠페인 중 IN_PROGRESS인 것만 매칭 ──
     public void match(Long historyId, JsonNode logNode, String rawMessage) {
@@ -237,7 +240,26 @@ public class FilterMatchingService {
         try {
             Long couponId = campaign.getCouponId();
             Long adId     = campaign.getAdId();
-            sseEmitterService.sendEvent(userId, campaignId, couponId, adId);
+
+            String couponName        = null;
+            String discountType      = null;
+            Integer discountAmount    = null;
+            Integer minOrderAmount    = null;
+            Integer maxDiscountAmount = null;
+
+            if (couponId != null) {
+                CouponBeEntity coupon = couponBeRepository.findById(couponId).orElse(null);
+                if (coupon != null) {
+                    couponName        = coupon.getName();
+                    discountType      = coupon.getDiscountType();
+                    discountAmount    = coupon.getDiscountAmount();
+                    minOrderAmount    = coupon.getMinOrderAmount();
+                    maxDiscountAmount  = coupon.getMaxDiscountAmount();
+                }
+            }
+
+            sseEmitterService.sendEvent(userId, campaignId, couponId, adId,
+                couponName, discountType, discountAmount, minOrderAmount, maxDiscountAmount);
         } catch (Exception e) {
             log.error("SSE 푸시 오류 - campaignId: {} error: {}", campaignId, e.getMessage());
         }

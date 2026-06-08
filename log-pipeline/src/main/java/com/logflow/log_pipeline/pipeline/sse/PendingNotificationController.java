@@ -22,11 +22,16 @@ public class PendingNotificationController {
         List<Map<String, Object>> result = list.stream()
             .map(p -> {
                 Map<String, Object> map = new java.util.HashMap<>();
-                map.put("id",         p.getId());
-                map.put("userId",     p.getUserId());
-                map.put("campaignId", p.getCampaignId());
-                map.put("couponId",   p.getCouponId());
-                map.put("adId",       p.getAdId());
+                map.put("id",                p.getId());
+                map.put("userId",            p.getUserId());
+                map.put("campaignId",        p.getCampaignId());
+                map.put("couponId",          p.getCouponId());
+                map.put("adId",              p.getAdId());
+                map.put("couponName",        p.getCouponName());
+                map.put("discountType",      p.getDiscountType());
+                map.put("discountAmount",    p.getDiscountAmount());
+                map.put("minOrderAmount",    p.getMinOrderAmount());
+                map.put("maxDiscountAmount", p.getMaxDiscountAmount());
                 return map;
             })
             .toList();

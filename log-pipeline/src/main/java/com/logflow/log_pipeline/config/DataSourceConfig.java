@@ -19,8 +19,7 @@ import java.util.Map;
 @Configuration
 @EnableJpaRepositories(
     basePackages = {
-        "com.logflow.log_pipeline.pipeline",
-        "com.logflow.log_pipeline.campaign"
+        "com.logflow.log_pipeline.pipeline"
     },
     entityManagerFactoryRef = "kafkaEntityManagerFactory",
     transactionManagerRef   = "kafkaTransactionManager"
@@ -54,8 +53,7 @@ public class DataSourceConfig {
         LocalContainerEntityManagerFactoryBean em = new LocalContainerEntityManagerFactoryBean();
         em.setDataSource(dataSource);
         em.setPackagesToScan(
-            "com.logflow.log_pipeline.pipeline",
-            "com.logflow.log_pipeline.campaign"
+            "com.logflow.log_pipeline.pipeline"
         );
         em.setPersistenceUnitName("kafka");
 

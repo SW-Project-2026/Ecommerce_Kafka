@@ -26,6 +26,21 @@ public class PendingNotificationEntity {
     @Column(name = "ad_id")
     private Long adId;
 
+    @Column(name = "coupon_name")
+    private String couponName;
+
+    @Column(name = "discount_type")
+    private String discountType;
+
+    @Column(name = "discount_amount")
+    private Integer discountAmount;
+
+    @Column(name = "min_order_amount")
+    private Integer minOrderAmount;
+
+    @Column(name = "max_discount_amount")
+    private Integer maxDiscountAmount;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -34,8 +49,13 @@ public class PendingNotificationEntity {
         this.createdAt = LocalDateTime.now();
     }
 
-    public void setUserId(Long userId)       { this.userId = userId; }
-    public void setCampaignId(Long campaignId) { this.campaignId = campaignId; }
-    public void setCouponId(Long couponId)   { this.couponId = couponId; }
-    public void setAdId(Long adId)           { this.adId = adId; }
+    public void setUserId(Long userId)                   { this.userId = userId; }
+    public void setCampaignId(Long campaignId)           { this.campaignId = campaignId; }
+    public void setCouponId(Long couponId)               { this.couponId = couponId; }
+    public void setAdId(Long adId)                       { this.adId = adId; }
+    public void setCouponName(String couponName)         { this.couponName = couponName; }
+    public void setDiscountType(String discountType)     { this.discountType = discountType; }
+    public void setDiscountAmount(Integer discountAmount) { this.discountAmount = discountAmount; }
+    public void setMinOrderAmount(Integer minOrderAmount) { this.minOrderAmount = minOrderAmount; }
+    public void setMaxDiscountAmount(Integer maxDiscountAmount) { this.maxDiscountAmount = maxDiscountAmount; }
 }

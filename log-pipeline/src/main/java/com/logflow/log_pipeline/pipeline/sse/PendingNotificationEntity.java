@@ -41,6 +41,18 @@ public class PendingNotificationEntity {
     @Column(name = "max_discount_amount")
     private Integer maxDiscountAmount;
 
+    @Column(name = "ad_target_type")
+    private String adTargetType;
+
+    @Column(name = "ad_product_id")
+    private Long adProductId;
+
+    @Column(name = "ad_category")
+    private String adCategory;
+
+    @Column(name = "ad_keyword")
+    private String adKeyword;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -58,4 +70,8 @@ public class PendingNotificationEntity {
     public void setDiscountAmount(Integer discountAmount) { this.discountAmount = discountAmount; }
     public void setMinOrderAmount(Integer minOrderAmount) { this.minOrderAmount = minOrderAmount; }
     public void setMaxDiscountAmount(Integer maxDiscountAmount) { this.maxDiscountAmount = maxDiscountAmount; }
+    public void setAdTargetType(String adTargetType)           { this.adTargetType = adTargetType; }
+    public void setAdProductId(Long adProductId)               { this.adProductId = adProductId; }
+    public void setAdCategory(String adCategory)               { this.adCategory = adCategory; }
+    public void setAdKeyword(String adKeyword)                 { this.adKeyword = adKeyword; }
 }

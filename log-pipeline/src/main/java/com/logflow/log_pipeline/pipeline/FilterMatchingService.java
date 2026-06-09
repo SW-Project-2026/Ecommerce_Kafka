@@ -20,14 +20,20 @@ import com.logflow.log_pipeline.pipeline.sse.SseEmitterService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -35,6 +41,12 @@ import java.util.List;
 public class FilterMatchingService {
 
     private static final Logger log = LoggerFactory.getLogger(FilterMatchingService.class);
+
+    @Value("${be.webhook.secret}")
+    private String webhookSecret;
+
+    @Value("${be.api.url}")
+    private String beApiUrl;
 
     private final FilterSuccessRepository filterSuccessRepository;
     private final FilterFailRepository filterFailRepository;
@@ -46,6 +58,8 @@ public class FilterMatchingService {
     private final CampaignBeFilterRepository campaignBeFilterRepository;
     private final CouponBeRepository couponBeRepository;
     private final AdBeRepository adBeRepository;
+
+    private final HttpClient httpClient = HttpClient.newHttpClient();
 
     // ── 실시간: TRIGGERED 캠페인 중 IN_PROGRESS인 것만 매칭 ──
     public void match(Long historyId, JsonNode logNode, String rawMessage) {
@@ -129,6 +143,8 @@ public class FilterMatchingService {
             LocalDateTime from = LocalDateTime.now().minusDays(maxPeriodDays);
             List<HistoryLogEntity> logs = historyLogRepository.findByHistoryTimestampAfter(from);
 
+            List<Long> batchUserIds = new ArrayList<>();
+
             for (HistoryLogEntity historyLog : logs) {
                 try {
                     JsonNode logNode  = objectMapper.readTree(historyLog.getJsonLog());
@@ -142,6 +158,12 @@ public class FilterMatchingService {
 
                     if (matched) {
                         handleSuccess(historyLog.getHistoryId(), campaign, false, historyLog.getJsonLog(), logNode);
+
+                        JsonNode userIdNode = logNode.path("user_id");
+                        if (!userIdNode.isMissingNode() && !userIdNode.isNull()) {
+                            Long uid = userIdNode.asLong();
+                            if (!batchUserIds.contains(uid)) batchUserIds.add(uid);
+                        }
                     } else {
                         handleFail(historyLog.getHistoryId(), campaign);
                     }
@@ -151,7 +173,44 @@ public class FilterMatchingService {
                 }
             }
 
+            // 배치 완료 후 웹훅 일괄 호출 (SMS/LMS 캠페인만)
+            if (!batchUserIds.isEmpty() && isSmsOrLms(campaign)) {
+                callWebhook(campaign.getId(), batchUserIds, "BATCH");
+            }
+
             log.info("배치 캠페인 완료 - campaignId: {}", campaign.getId());
+        }
+    }
+
+    // ── SMS/LMS 캠페인 여부 ──
+    private boolean isSmsOrLms(CampaignBeEntity campaign) {
+        String messageType = campaign.getMessageType();
+        return "SMS".equals(messageType) || "LMS".equals(messageType);
+    }
+
+    // ── 웹훅 호출 ──
+    private void callWebhook(Long campaignId, List<Long> userIds, String source) {
+        try {
+            StringBuilder sb = new StringBuilder();
+            sb.append("{\"userIds\":[");
+            for (int i = 0; i < userIds.size(); i++) {
+                if (i > 0) sb.append(",");
+                sb.append(userIds.get(i));
+            }
+            sb.append("],\"source\":\"").append(source).append("\"}");
+
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(beApiUrl + "/api/campaigns/" + campaignId + "/webhook"))
+                .header("Content-Type", "application/json")
+                .header("X-Webhook-Secret", webhookSecret)
+                .POST(HttpRequest.BodyPublishers.ofString(sb.toString()))
+                .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            log.info("웹훅 호출 완료 - campaignId: {} source: {} userCount: {} status: {}",
+                campaignId, source, userIds.size(), response.statusCode());
+        } catch (Exception e) {
+            log.error("웹훅 호출 오류 - campaignId: {} error: {}", campaignId, e.getMessage());
         }
     }
 
@@ -234,10 +293,15 @@ public class FilterMatchingService {
         // user_id 추출
         JsonNode userIdNode = logNode.path("user_id");
         if (userIdNode.isMissingNode() || userIdNode.isNull()) {
-            log.info("user_id 없음 - SSE 푸시 스킵");
+            log.info("user_id 없음 - SSE/웹훅 스킵");
             return;
         }
         Long userId = userIdNode.asLong();
+
+        // 실시간 웹훅 호출 (SMS/LMS 캠페인만)
+        if (isRealtime && isSmsOrLms(campaign)) {
+            callWebhook(campaignId, List.of(userId), "REALTIME");
+        }
 
         // SSE 푸시
         try {
@@ -246,8 +310,8 @@ public class FilterMatchingService {
 
             String couponName        = null;
             String discountType      = null;
-            Integer discountAmount    = null;
-            Integer minOrderAmount    = null;
+            Integer discountAmount   = null;
+            Integer minOrderAmount   = null;
             Integer maxDiscountAmount = null;
 
             if (couponId != null) {
@@ -257,7 +321,7 @@ public class FilterMatchingService {
                     discountType      = coupon.getDiscountType();
                     discountAmount    = coupon.getDiscountAmount();
                     minOrderAmount    = coupon.getMinOrderAmount();
-                    maxDiscountAmount  = coupon.getMaxDiscountAmount();
+                    maxDiscountAmount = coupon.getMaxDiscountAmount();
                 }
             }
 

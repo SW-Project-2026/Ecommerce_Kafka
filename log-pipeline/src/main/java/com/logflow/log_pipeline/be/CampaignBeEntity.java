@@ -43,4 +43,7 @@ public class CampaignBeEntity {
 
     @Column(name = "batch_day_of_month")
     private Integer batchDayOfMonth;
+
+    @Column(name = "message_type")
+    private String messageType;
 }

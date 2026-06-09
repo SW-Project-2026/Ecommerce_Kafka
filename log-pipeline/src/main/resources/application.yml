@@ -23,9 +23,9 @@ spring:
       password: ${SPRING_DATASOURCE_PASSWORD:${POSTGRES_PASSWORD}} # Kafka DB 비밀번호
       driver-class-name: org.postgresql.Driver
     be:
-      jdbc-url: ${BE_DATASOURCE_URL} # BE DB 주소
-      username: ${BE_DATASOURCE_USERNAME} # BE DB 유저
-      password: ${BE_DATASOURCE_PASSWORD} # BE DB 비밀번호
+      jdbc-url: ${BE_DATASOURCE_URL:jdbc:postgresql://3.94.195.37:5432/ecommerce} # BE DB 주소
+      username: ${BE_DATASOURCE_USERNAME:admin} # BE DB 유저
+      password: ${BE_DATASOURCE_PASSWORD:1234} # BE DB 비밀번호
       driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -35,4 +35,9 @@ spring:
     properties:
       hibernate:
         '[format_sql]': false # SQL 포맷팅 안함
-        '[physical_naming_strategy]': org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy
+
+be:
+  webhook:
+    secret: ${WEBHOOK_SECRET}
+  api:
+    url: ${BE_API_URL}

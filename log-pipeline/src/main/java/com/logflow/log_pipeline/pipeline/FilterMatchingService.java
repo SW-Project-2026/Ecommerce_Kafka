@@ -8,6 +8,8 @@ import com.logflow.log_pipeline.be.CampaignBeFilterRepository;
 import com.logflow.log_pipeline.be.CampaignBeRepository;
 import com.logflow.log_pipeline.be.CouponBeEntity;
 import com.logflow.log_pipeline.be.CouponBeRepository;
+import com.logflow.log_pipeline.be.AdBeEntity;
+import com.logflow.log_pipeline.be.AdBeRepository;
 import com.logflow.log_pipeline.pipeline.history.FilterFailEntity;
 import com.logflow.log_pipeline.pipeline.history.FilterFailRepository;
 import com.logflow.log_pipeline.pipeline.history.FilterSuccessEntity;
@@ -43,6 +45,7 @@ public class FilterMatchingService {
     private final CampaignBeRepository campaignBeRepository;
     private final CampaignBeFilterRepository campaignBeFilterRepository;
     private final CouponBeRepository couponBeRepository;
+    private final AdBeRepository adBeRepository;
 
     // ── 실시간: TRIGGERED 캠페인 중 IN_PROGRESS인 것만 매칭 ──
     public void match(Long historyId, JsonNode logNode, String rawMessage) {
@@ -258,8 +261,24 @@ public class FilterMatchingService {
                 }
             }
 
+            String adTargetType = null;
+            Long   adProductId  = null;
+            String adCategory   = null;
+            String adKeyword    = null;
+
+            if (adId != null) {
+                AdBeEntity ad = adBeRepository.findById(adId).orElse(null);
+                if (ad != null) {
+                    adTargetType = ad.getTargetType();
+                    adProductId  = ad.getProductId();
+                    adCategory   = ad.getCategory();
+                    adKeyword    = ad.getKeyword();
+                }
+            }
+
             sseEmitterService.sendEvent(userId, campaignId, couponId, adId,
-                couponName, discountType, discountAmount, minOrderAmount, maxDiscountAmount);
+                couponName, discountType, discountAmount, minOrderAmount, maxDiscountAmount,
+                adTargetType, adProductId, adCategory, adKeyword);
         } catch (Exception e) {
             log.error("SSE 푸시 오류 - campaignId: {} error: {}", campaignId, e.getMessage());
         }

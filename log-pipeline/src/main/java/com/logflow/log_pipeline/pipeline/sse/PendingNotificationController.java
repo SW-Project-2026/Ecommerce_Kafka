@@ -32,6 +32,10 @@ public class PendingNotificationController {
                 map.put("discountAmount",    p.getDiscountAmount());
                 map.put("minOrderAmount",    p.getMinOrderAmount());
                 map.put("maxDiscountAmount", p.getMaxDiscountAmount());
+                map.put("adTargetType",      p.getAdTargetType());
+                map.put("adProductId",       p.getAdProductId());
+                map.put("adCategory",        p.getAdCategory());
+                map.put("adKeyword",         p.getAdKeyword());
                 return map;
             })
             .toList();

@@ -54,6 +54,9 @@ public class EventLogConsumer {
                     .earnReason(getText(node, "earnReason"))
                     // 로그인/로그아웃
                     .loginId(getText(node, "user_login_id"))
+                    // 광고
+                    .adId(getLong(node, "adId"))
+                    .clientUuid(getText(node, "client_uuid"))
                     .build();
 
             eventLogRepository.save(entity);

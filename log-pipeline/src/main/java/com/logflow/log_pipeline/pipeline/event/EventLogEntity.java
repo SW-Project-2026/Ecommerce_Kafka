@@ -81,6 +81,13 @@ public class EventLogEntity {
     @Column(name = "login_id", length = 100)
     private String loginId;
 
+    // 광고
+    @Column(name = "ad_id")
+    private Long adId;
+
+    @Column(name = "client_uuid", length = 100)
+    private String clientUuid;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

@@ -8,8 +8,6 @@ import com.logflow.log_pipeline.be.CampaignBeFilterRepository;
 import com.logflow.log_pipeline.be.CampaignBeRepository;
 import com.logflow.log_pipeline.be.CouponBeEntity;
 import com.logflow.log_pipeline.be.CouponBeRepository;
-import com.logflow.log_pipeline.be.AdBeEntity;
-import com.logflow.log_pipeline.be.AdBeRepository;
 import com.logflow.log_pipeline.pipeline.history.FilterFailEntity;
 import com.logflow.log_pipeline.pipeline.history.FilterFailRepository;
 import com.logflow.log_pipeline.pipeline.history.FilterSuccessEntity;
@@ -57,7 +55,6 @@ public class FilterMatchingService {
     private final CampaignBeRepository campaignBeRepository;
     private final CampaignBeFilterRepository campaignBeFilterRepository;
     private final CouponBeRepository couponBeRepository;
-    private final AdBeRepository adBeRepository;
 
     private final HttpClient httpClient = HttpClient.newHttpClient();
 
@@ -173,9 +170,14 @@ public class FilterMatchingService {
                 }
             }
 
-            // 배치 완료 후 웹훅 일괄 호출 (SMS/LMS 캠페인만)
+            // 배치 완료 후 웹훅 일괄 호출 (SMS/LMS 캠페인)
             if (!batchUserIds.isEmpty() && isSmsOrLms(campaign)) {
                 callWebhook(campaign.getId(), batchUserIds, "BATCH");
+            }
+
+            // 배치 완료 후 웹훅 일괄 호출 (광고 캠페인)
+            if (!batchUserIds.isEmpty() && isAdCampaign(campaign)) {
+                callWebhook(campaign.getId(), batchUserIds, "kafka");
             }
 
             log.info("배치 캠페인 완료 - campaignId: {}", campaign.getId());
@@ -186,6 +188,11 @@ public class FilterMatchingService {
     private boolean isSmsOrLms(CampaignBeEntity campaign) {
         String messageType = campaign.getMessageType();
         return "SMS".equals(messageType) || "LMS".equals(messageType);
+    }
+
+    // ── 광고 캠페인 여부 ──
+    private boolean isAdCampaign(CampaignBeEntity campaign) {
+        return campaign.getAdId() != null;
     }
 
     // ── 웹훅 호출 ──
@@ -293,56 +300,33 @@ public class FilterMatchingService {
         // user_id 추출
         JsonNode userIdNode = logNode.path("user_id");
         if (userIdNode.isMissingNode() || userIdNode.isNull()) {
-            log.info("user_id 없음 - SSE/웹훅 스킵");
+            log.info("user_id 없음 - 웹훅/SSE 스킵");
             return;
         }
         Long userId = userIdNode.asLong();
 
-        // 실시간 웹훅 호출 (SMS/LMS 캠페인만)
+        // 실시간 웹훅 호출 (SMS/LMS 캠페인)
         if (isRealtime && isSmsOrLms(campaign)) {
             callWebhook(campaignId, List.of(userId), "REALTIME");
         }
 
-        // SSE 푸시
+        // 실시간 웹훅 호출 (광고 캠페인)
+        if (isRealtime && isAdCampaign(campaign)) {
+            callWebhook(campaignId, List.of(userId), "kafka");
+        }
+
+        // 쿠폰 팝업 SSE 푸시
         try {
             Long couponId = campaign.getCouponId();
-            Long adId     = campaign.getAdId();
-
-            String couponName        = null;
-            String discountType      = null;
-            Integer discountAmount   = null;
-            Integer minOrderAmount   = null;
-            Integer maxDiscountAmount = null;
 
             if (couponId != null) {
                 CouponBeEntity coupon = couponBeRepository.findById(couponId).orElse(null);
                 if (coupon != null) {
-                    couponName        = coupon.getName();
-                    discountType      = coupon.getDiscountType();
-                    discountAmount    = coupon.getDiscountAmount();
-                    minOrderAmount    = coupon.getMinOrderAmount();
-                    maxDiscountAmount = coupon.getMaxDiscountAmount();
+                    sseEmitterService.sendEvent(userId, campaignId, couponId,
+                        coupon.getName(), coupon.getDiscountType(), coupon.getDiscountAmount(),
+                        coupon.getMinOrderAmount(), coupon.getMaxDiscountAmount());
                 }
             }
-
-            String adTargetType = null;
-            Long   adProductId  = null;
-            String adCategory   = null;
-            String adKeyword    = null;
-
-            if (adId != null) {
-                AdBeEntity ad = adBeRepository.findById(adId).orElse(null);
-                if (ad != null) {
-                    adTargetType = ad.getTargetType();
-                    adProductId  = ad.getProductId();
-                    adCategory   = ad.getCategory();
-                    adKeyword    = ad.getKeyword();
-                }
-            }
-
-            sseEmitterService.sendEvent(userId, campaignId, couponId, adId,
-                couponName, discountType, discountAmount, minOrderAmount, maxDiscountAmount,
-                adTargetType, adProductId, adCategory, adKeyword);
         } catch (Exception e) {
             log.error("SSE 푸시 오류 - campaignId: {} error: {}", campaignId, e.getMessage());
         }

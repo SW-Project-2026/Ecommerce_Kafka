@@ -50,15 +50,13 @@ public class SseEmitterService {
         return emitter;
     }
 
-    public void sendEvent(Long userId, Long campaignId, Long couponId, Long adId,
+    public void sendEvent(Long userId, Long campaignId, Long couponId,
                           String couponName, String discountType, Integer discountAmount,
-                          Integer minOrderAmount, Integer maxDiscountAmount,
-                          String adTargetType, Long adProductId, String adCategory, String adKeyword) {
+                          Integer minOrderAmount, Integer maxDiscountAmount) {
         SseEmitter emitter = emitters.get(userId);
 
-        String payload = buildPayload(userId, campaignId, couponId, adId,
-            couponName, discountType, discountAmount, minOrderAmount, maxDiscountAmount,
-            adTargetType, adProductId, adCategory, adKeyword);
+        String payload = buildPayload(userId, campaignId, couponId,
+            couponName, discountType, discountAmount, minOrderAmount, maxDiscountAmount);
 
         if (emitter != null) {
             try {
@@ -67,61 +65,46 @@ public class SseEmitterService {
             } catch (IOException e) {
                 emitters.remove(userId);
                 log.error("SSE 전송 실패 - userId: {} error: {}", userId, e.getMessage());
-                savePending(userId, campaignId, couponId, adId,
-                    couponName, discountType, discountAmount, minOrderAmount, maxDiscountAmount,
-                    adTargetType, adProductId, adCategory, adKeyword);
+                savePending(userId, campaignId, couponId,
+                    couponName, discountType, discountAmount, minOrderAmount, maxDiscountAmount);
             }
         } else {
             log.info("SSE 연결 없음 - pending 저장 userId: {} campaignId: {}", userId, campaignId);
-            savePending(userId, campaignId, couponId, adId,
-                couponName, discountType, discountAmount, minOrderAmount, maxDiscountAmount,
-                adTargetType, adProductId, adCategory, adKeyword);
+            savePending(userId, campaignId, couponId,
+                couponName, discountType, discountAmount, minOrderAmount, maxDiscountAmount);
         }
     }
 
-    private String buildPayload(Long userId, Long campaignId, Long couponId, Long adId,
+    private String buildPayload(Long userId, Long campaignId, Long couponId,
                                 String couponName, String discountType, Integer discountAmount,
-                                Integer minOrderAmount, Integer maxDiscountAmount,
-                                String adTargetType, Long adProductId, String adCategory, String adKeyword) {
+                                Integer minOrderAmount, Integer maxDiscountAmount) {
         return String.format(
-            "{\"userId\":%d,\"campaignId\":%d,\"couponId\":%s,\"adId\":%s," +
+            "{\"userId\":%d,\"campaignId\":%d,\"couponId\":%s," +
             "\"couponName\":%s,\"discountType\":%s,\"discountAmount\":%s," +
-            "\"minOrderAmount\":%s,\"maxDiscountAmount\":%s," +
-            "\"adTargetType\":%s,\"adProductId\":%s,\"adCategory\":%s,\"adKeyword\":%s}",
+            "\"minOrderAmount\":%s,\"maxDiscountAmount\":%s}",
             userId,
             campaignId,
             couponId          != null ? couponId.toString()              : "null",
-            adId              != null ? adId.toString()                  : "null",
             couponName        != null ? "\"" + couponName + "\""         : "null",
             discountType      != null ? "\"" + discountType + "\""       : "null",
             discountAmount    != null ? discountAmount.toString()        : "null",
             minOrderAmount    != null ? minOrderAmount.toString()        : "null",
-            maxDiscountAmount != null ? maxDiscountAmount.toString()     : "null",
-            adTargetType      != null ? "\"" + adTargetType + "\""       : "null",
-            adProductId       != null ? adProductId.toString()           : "null",
-            adCategory        != null ? "\"" + adCategory + "\""         : "null",
-            adKeyword         != null ? "\"" + adKeyword + "\""          : "null"
+            maxDiscountAmount != null ? maxDiscountAmount.toString()     : "null"
         );
     }
 
-    private void savePending(Long userId, Long campaignId, Long couponId, Long adId,
+    private void savePending(Long userId, Long campaignId, Long couponId,
                              String couponName, String discountType, Integer discountAmount,
-                             Integer minOrderAmount, Integer maxDiscountAmount,
-                             String adTargetType, Long adProductId, String adCategory, String adKeyword) {
+                             Integer minOrderAmount, Integer maxDiscountAmount) {
         PendingNotificationEntity pending = new PendingNotificationEntity();
         pending.setUserId(userId);
         pending.setCampaignId(campaignId);
         pending.setCouponId(couponId);
-        pending.setAdId(adId);
         pending.setCouponName(couponName);
         pending.setDiscountType(discountType);
         pending.setDiscountAmount(discountAmount);
         pending.setMinOrderAmount(minOrderAmount);
         pending.setMaxDiscountAmount(maxDiscountAmount);
-        pending.setAdTargetType(adTargetType);
-        pending.setAdProductId(adProductId);
-        pending.setAdCategory(adCategory);
-        pending.setAdKeyword(adKeyword);
         pendingNotificationRepository.save(pending);
         log.info("pending 저장 완료 - userId: {} campaignId: {}", userId, campaignId);
     }

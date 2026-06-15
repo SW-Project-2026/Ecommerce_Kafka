@@ -11,4 +11,8 @@ public interface PendingNotificationRepository extends JpaRepository<PendingNoti
     List<PendingNotificationEntity> findByUserId(Long userId);
 
     void deleteByUserId(Long userId);
+
+    List<PendingNotificationEntity> findByClientUuid(String clientUuid);
+
+    void deleteByClientUuid(String clientUuid);
 }

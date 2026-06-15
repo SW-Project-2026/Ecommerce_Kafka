@@ -17,13 +17,18 @@ public class PendingNotificationController {
 
     // 미수신 알림 조회
     @GetMapping("/pending")
-    public ResponseEntity<List<Map<String, Object>>> getPending(@RequestParam Long userId) {
-        List<PendingNotificationEntity> list = pendingNotificationRepository.findByUserId(userId);
+    public ResponseEntity<List<Map<String, Object>>> getPending(@RequestParam(required = false) Long userId,
+                                                                  @RequestParam(required = false) String clientUuid) {
+        List<PendingNotificationEntity> list = userId != null
+            ? pendingNotificationRepository.findByUserId(userId)
+            : pendingNotificationRepository.findByClientUuid(clientUuid);
+
         List<Map<String, Object>> result = list.stream()
             .map(p -> {
                 Map<String, Object> map = new java.util.HashMap<>();
                 map.put("id",                p.getId());
                 map.put("userId",            p.getUserId());
+                map.put("clientUuid",        p.getClientUuid());
                 map.put("campaignId",        p.getCampaignId());
                 map.put("couponId",          p.getCouponId());
                 map.put("couponName",        p.getCouponName());
@@ -40,8 +45,13 @@ public class PendingNotificationController {
     // 미수신 알림 삭제 (확인 후)
     @Transactional
     @DeleteMapping("/pending")
-    public ResponseEntity<Void> deletePending(@RequestParam Long userId) {
-        pendingNotificationRepository.deleteByUserId(userId);
+    public ResponseEntity<Void> deletePending(@RequestParam(required = false) Long userId,
+                                               @RequestParam(required = false) String clientUuid) {
+        if (userId != null) {
+            pendingNotificationRepository.deleteByUserId(userId);
+        } else if (clientUuid != null) {
+            pendingNotificationRepository.deleteByClientUuid(clientUuid);
+        }
         return ResponseEntity.ok().build();
     }
 }

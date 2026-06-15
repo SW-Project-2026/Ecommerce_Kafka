@@ -297,10 +297,10 @@ public class FilterMatchingService {
         kafkaTemplate.send("FILTER_SUCCESS_TOPIC", String.valueOf(campaignId), rawMessage);
         log.info("필터링 성공 - historyId: {} campaignId: {}", historyId, campaignId);
 
-        // user_id 추출
+        // user_id 추출 (비로그인 사용자는 user_id가 없음 -> client_uuid로 분기)
         JsonNode userIdNode = logNode.path("user_id");
         if (userIdNode.isMissingNode() || userIdNode.isNull()) {
-            log.info("user_id 없음 - 웹훅/SSE 스킵");
+            handleSuccessForGuest(campaign, campaignId, logNode);
             return;
         }
         Long userId = userIdNode.asLong();
@@ -315,11 +315,12 @@ public class FilterMatchingService {
             callWebhook(campaignId, List.of(userId), "kafka");
         }
 
-        // 쿠폰 팝업 SSE 푸시
+        // 쿠폰 팝업 SSE 푸시 (다운로드 발급 방식만)
         try {
             Long couponId = campaign.getCouponId();
+            String issueType = campaign.getIssueType();
 
-            if (couponId != null) {
+            if (couponId != null && "DOWNLOAD".equals(issueType)) {
                 CouponBeEntity coupon = couponBeRepository.findById(couponId).orElse(null);
                 if (coupon != null) {
                     sseEmitterService.sendEvent(userId, campaignId, couponId,
@@ -329,6 +330,37 @@ public class FilterMatchingService {
             }
         } catch (Exception e) {
             log.error("SSE 푸시 오류 - campaignId: {} error: {}", campaignId, e.getMessage());
+        }
+    }
+
+    // ── 비로그인 사용자(client_uuid 기준) 쿠폰 팝업 SSE 푸시 ──
+    private void handleSuccessForGuest(CampaignBeEntity campaign, Long campaignId, JsonNode logNode) {
+        JsonNode clientUuidNode = logNode.path("client_uuid");
+        if (clientUuidNode.isMissingNode() || clientUuidNode.isNull()) {
+            log.info("user_id, client_uuid 모두 없음 - SSE 스킵 campaignId: {}", campaignId);
+            return;
+        }
+        String clientUuid = clientUuidNode.asText();
+        if (clientUuid.isBlank()) {
+            log.info("client_uuid 비어있음 - SSE 스킵 campaignId: {}", campaignId);
+            return;
+        }
+
+        // 쿠폰 팝업 SSE 푸시 (다운로드 발급 방식만)
+        try {
+            Long couponId = campaign.getCouponId();
+            String issueType = campaign.getIssueType();
+
+            if (couponId != null && "DOWNLOAD".equals(issueType)) {
+                CouponBeEntity coupon = couponBeRepository.findById(couponId).orElse(null);
+                if (coupon != null) {
+                    sseEmitterService.sendEventByClientUuid(clientUuid, campaignId, couponId,
+                        coupon.getName(), coupon.getDiscountType(), coupon.getDiscountAmount(),
+                        coupon.getMinOrderAmount(), coupon.getMaxDiscountAmount());
+                }
+            }
+        } catch (Exception e) {
+            log.error("SSE 푸시 오류(guest) - campaignId: {} error: {}", campaignId, e.getMessage());
         }
     }
 

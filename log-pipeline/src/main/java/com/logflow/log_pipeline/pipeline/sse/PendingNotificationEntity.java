@@ -14,8 +14,11 @@ public class PendingNotificationEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id", nullable = false)
+    @Column(name = "user_id")
     private Long userId;
+
+    @Column(name = "client_uuid")
+    private String clientUuid;
 
     @Column(name = "campaign_id", nullable = false)
     private Long campaignId;
@@ -47,6 +50,7 @@ public class PendingNotificationEntity {
     }
 
     public void setUserId(Long userId)                   { this.userId = userId; }
+    public void setClientUuid(String clientUuid)         { this.clientUuid = clientUuid; }
     public void setCampaignId(Long campaignId)           { this.campaignId = campaignId; }
     public void setCouponId(Long couponId)               { this.couponId = couponId; }
     public void setCouponName(String couponName)         { this.couponName = couponName; }

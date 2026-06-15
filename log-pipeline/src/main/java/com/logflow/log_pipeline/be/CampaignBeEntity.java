@@ -46,4 +46,7 @@ public class CampaignBeEntity {
 
     @Column(name = "message_type")
     private String messageType;
+
+    @Column(name = "issue_type")
+    private String issueType;
 }

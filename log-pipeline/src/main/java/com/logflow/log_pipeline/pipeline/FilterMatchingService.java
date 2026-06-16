@@ -177,7 +177,7 @@ public class FilterMatchingService {
 
             // 배치 완료 후 웹훅 일괄 호출 (광고 캠페인)
             if (!batchUserIds.isEmpty() && isAdCampaign(campaign)) {
-                callWebhook(campaign.getId(), batchUserIds, "kafka");
+                callWebhook(campaign.getId(), batchUserIds, "BATCH");
             }
 
             log.info("배치 캠페인 완료 - campaignId: {}", campaign.getId());
@@ -328,7 +328,7 @@ public class FilterMatchingService {
 
         // 실시간 웹훅 호출 (광고 캠페인)
         if (isRealtime && isAdCampaign(campaign)) {
-            callWebhook(campaignId, List.of(userId), "kafka");
+            callWebhook(campaignId, List.of(userId), "TRIGGERED");
         }
 
         // 쿠폰 자동 지급 웹훅 호출 (AUTO 발급방식, 실시간/배치 공통)

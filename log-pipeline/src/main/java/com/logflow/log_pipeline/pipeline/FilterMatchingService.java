@@ -297,10 +297,26 @@ public class FilterMatchingService {
         kafkaTemplate.send("FILTER_SUCCESS_TOPIC", String.valueOf(campaignId), rawMessage);
         log.info("필터링 성공 - historyId: {} campaignId: {}", historyId, campaignId);
 
-        // user_id 추출 (비로그인 사용자는 user_id가 없음 -> client_uuid로 분기)
+        // 캠페인 필터에 user_login_id = null 조건이 있는지 확인 (비로그인 전용 캠페인 여부)
+        boolean isGuestCampaign = isGuestTargetCampaign(campaignId);
+
+        // user_id 추출
         JsonNode userIdNode = logNode.path("user_id");
-        if (userIdNode.isMissingNode() || userIdNode.isNull()) {
-            handleSuccessForGuest(campaign, campaignId, logNode);
+        boolean hasUserId = !userIdNode.isMissingNode() && !userIdNode.isNull();
+
+        if (isGuestCampaign) {
+            // 비로그인 전용 캠페인: user_id가 없는 경우(비로그인)만 처리
+            if (!hasUserId) {
+                handleSuccessForGuest(campaign, campaignId, logNode);
+            } else {
+                log.info("비로그인 전용 캠페인 - 로그인 사용자 스킵 campaignId: {}", campaignId);
+            }
+            return;
+        }
+
+        // 일반 캠페인(user_login_id 조건 없음): user_id가 있는 경우(로그인)만 처리
+        if (!hasUserId) {
+            log.info("일반 캠페인 - 비로그인 사용자 스킵 campaignId: {}", campaignId);
             return;
         }
         Long userId = userIdNode.asLong();
@@ -343,6 +359,14 @@ public class FilterMatchingService {
         } catch (Exception e) {
             log.error("SSE 푸시 오류 - campaignId: {} error: {}", campaignId, e.getMessage());
         }
+    }
+
+    // ── 비로그인 전용 캠페인 여부 (user_login_id = null 필터 조건 존재 여부) ──
+    private boolean isGuestTargetCampaign(Long campaignId) {
+        return campaignBeFilterRepository.findByCampaignIdWithEventField(campaignId).stream()
+            .anyMatch(f -> "user_login_id".equals(f.getFieldName())
+                && "EQUALS".equals(f.getOperator())
+                && "null".equals(f.getValue()));
     }
 
     // ── 비로그인 사용자(client_uuid 기준) 쿠폰 팝업 SSE 푸시 ──

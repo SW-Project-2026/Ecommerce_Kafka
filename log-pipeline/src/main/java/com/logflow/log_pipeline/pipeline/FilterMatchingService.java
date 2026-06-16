@@ -315,6 +315,18 @@ public class FilterMatchingService {
             callWebhook(campaignId, List.of(userId), "kafka");
         }
 
+        // 쿠폰 자동 지급 웹훅 호출 (AUTO 발급방식, 실시간/배치 공통)
+        try {
+            Long couponId = campaign.getCouponId();
+            String issueType = campaign.getIssueType();
+
+            if (couponId != null && "AUTO".equals(issueType)) {
+                callWebhook(campaignId, List.of(userId), isRealtime ? "TRIGGERED" : "BATCH");
+            }
+        } catch (Exception e) {
+            log.error("쿠폰 자동 지급 웹훅 오류 - campaignId: {} error: {}", campaignId, e.getMessage());
+        }
+
         // 쿠폰 팝업 SSE 푸시 (다운로드 발급 방식만)
         try {
             Long couponId = campaign.getCouponId();

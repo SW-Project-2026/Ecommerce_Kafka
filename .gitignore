@@ -3,6 +3,7 @@
 
 # 빌드 결과물
 log-pipeline/build/
+log-pipeline/bin/
 log-pipeline/.gradle/
 *.class
 
